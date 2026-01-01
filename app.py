@@ -27,13 +27,20 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import warnings
 
-# ==================== CONFIGURATION ====================
+# ==================== SECURE CONFIGURATION WITH REPLIT SECRETS ====================
 class Config:
-    # Discord
-    DISCORD_TOKEN = "MTQ1NTk5NDM2NzQ5MDkxNjM1Mg.GzFpGj.CIdx2gY9c4gXPJG6VFUO0TsRf82f2jwm7RWibs"
+    # Get secrets from Replit environment
+    DISCORD_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
     
-    # Groq
-    GROQ_API_KEY = "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"
+    # Validate that secrets exist
+    if not DISCORD_TOKEN:
+        raise ValueError("❌ DISCORD_BOT_TOKEN not found in Replit Secrets. "
+                        "Please add it in the Secrets tab (lock icon).")
+    
+    if not GROQ_API_KEY:
+        raise ValueError("❌ GROQ_API_KEY not found in Replit Secrets. "
+                        "Please add it in the Secrets tab (lock icon).")
     
     # Models
     MODELS = {
@@ -92,6 +99,40 @@ class Config:
     DEFAULT_MODEL = "fast"
     MAX_TOKENS = 4000
     TEMPERATURE = 0.7
+
+# ==================== SETUP CHECK ====================
+def setup_check():
+    """Verify that everything is properly configured"""
+    print("=" * 70)
+    print("🔧 Running Setup Check...")
+    print("=" * 70)
+    
+    # Check secrets
+    if Config.DISCORD_TOKEN:
+        print("✅ Discord Token: Loaded (first 10 chars: " + Config.DISCORD_TOKEN[:10] + "...)")
+    else:
+        print("❌ Discord Token: MISSING")
+        
+    if Config.GROQ_API_KEY:
+        print("✅ Groq API Key: Loaded (first 10 chars: " + Config.GROQ_API_KEY[:10] + "...)")
+    else:
+        print("❌ Groq API Key: MISSING")
+    
+    # Check directories
+    for dir_path in [Config.UPLOAD_DIR, Config.BACKUP_DIR]:
+        os.makedirs(dir_path, exist_ok=True)
+        print(f"✅ Directory: {dir_path} ready")
+    
+    # Check database
+    print(f"✅ Database: {Config.DB_PATH} will be created if needed")
+    
+    print("=" * 70)
+    print("📋 Models Available:")
+    for model_key, model_name in Config.MODELS.items():
+        print(f"  • {model_key}: {model_name}")
+    
+    print("=" * 70)
+    return True
 
 # ==================== DATABASE SCHEMA ====================
 class Database:
@@ -1609,6 +1650,9 @@ class BackgroundProcessor:
 # ==================== DISCORD BOT ====================
 class AssistantBot:
     def __init__(self):
+        # First, check if secrets are loaded
+        self._check_secrets()
+        
         # Initialize components
         self.db = Database()
         self.tool_registry = ToolRegistry(self.db)
@@ -1630,7 +1674,19 @@ class AssistantBot:
         # Register event handlers
         self.bot.event(self.on_ready)
         self.bot.event(self.on_message)
-        
+    
+    def _check_secrets(self):
+        """Verify secrets are properly loaded"""
+        if not Config.DISCORD_TOKEN or Config.DISCORD_TOKEN == "":
+            print("❌ ERROR: DISCORD_BOT_TOKEN not found in Replit Secrets")
+            print("📝 Please add it in the Secrets tab (lock icon) with key: DISCORD_BOT_TOKEN")
+            exit(1)
+            
+        if not Config.GROQ_API_KEY or Config.GROQ_API_KEY == "":
+            print("❌ ERROR: GROQ_API_KEY not found in Replit Secrets")
+            print("📝 Please add it in the Secrets tab (lock icon) with key: GROQ_API_KEY")
+            exit(1)
+    
     async def on_ready(self):
         """Bot is ready"""
         print(f"🚀 {self.bot.user} is online!")
@@ -1650,7 +1706,7 @@ class AssistantBot:
         
         print("=" * 60)
         print("✅ Bot is ready! Features:")
-        print("  • AI Function Calling with {len(self.tool_registry.tools)} tools")
+        print(f"  • AI Function Calling with {len(self.tool_registry.tools)} tools")
         print("  • File uploads & Image analysis")
         print("  • Code execution, review, debugging")
         print("  • Memory system with validation")
@@ -1855,14 +1911,8 @@ if __name__ == "__main__":
     print("  8. Self-learning AI")
     print("=" * 70)
     
-    # Check for required tokens
-    if Config.DISCORD_TOKEN == "YOUR_DISCORD_BOT_TOKEN_HERE":
-        print("❌ ERROR: Please set your Discord bot token in Config.DISCORD_TOKEN")
-        exit(1)
-    
-    if Config.GROQ_API_KEY == "YOUR_GROQ_API_KEY_HERE":
-        print("❌ ERROR: Please set your Groq API key in Config.GROQ_API_KEY")
-        exit(1)
+    # Run setup check
+    setup_check()
     
     # Initialize and run bot
     bot = AssistantBot()
